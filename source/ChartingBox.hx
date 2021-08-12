@@ -13,4 +13,4 @@ class ChartingBox extends FlxSprite
         makeGraphic(40,40,FlxColor.fromRGB(173, 216, 230));
         alpha = 0.4;
     }
-} 
+}
