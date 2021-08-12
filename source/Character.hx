@@ -389,9 +389,6 @@ class Character extends FlxSprite
 
 				loadOffsetFile(curCharacter);
 
-				setGraphicSize(Std.int(width * 6));
-				updateHitbox();
-
 				playAnim('idle');
 
 			case 'triev':
@@ -403,9 +400,6 @@ class Character extends FlxSprite
 				animation.addByPrefix('singDOWN', "down", 24, false);
 
 				loadOffsetFile(curCharacter);
-
-				setGraphicSize(Std.int(width * 6));
-				updateHitbox();
 
 				playAnim('idle');
 
