@@ -69,10 +69,10 @@ import lime.utils.Assets;
 import openfl.display.BlendMode;
 import openfl.display.StageQuality;
 import openfl.filters.ShaderFilter;
-#if windows
+#if cpp
 import Discord.DiscordClient;
 #end
-#if windows
+#if cpp
 import Sys;
 import sys.FileSystem;
 #end
@@ -113,7 +113,7 @@ class PlayState extends MusicBeatState
 	var songLength:Float = 0;
 	var kadeEngineWatermark:FlxText;
 
-	#if windows
+	#if cpp
 	// Discord RPC variables
 	var storyDifficultyText:String = "";
 	var iconRPC:String = "";
@@ -197,8 +197,8 @@ class PlayState extends MusicBeatState
 
 	var notesHitArray:Array<Date> = [];
 	var currentFrames:Int = 0;
-	var idleToBeat:Bool = false; // change if bf and dad would idle to the beat of the song
-	var idleBeat:Int = 4; // how frequently bf and dad would play their idle animation(1 - every beat, 2 - every 2 beats and so on)
+	var idleToBeat:Bool = true; // change if bf and dad would idle to the beat of the song
+	var idleBeat:Int = 2; // how frequently bf and dad would play their idle animation(1 - every beat, 2 - every 2 beats and so on)
 
 	public var dialogue:Array<String> = ['dad:blah blah blah', 'bf:coolswag'];
 
@@ -329,7 +329,7 @@ class PlayState extends MusicBeatState
 
 		removedVideo = false;
 
-		#if windows
+		#if cpp
 		executeModchart = FileSystem.exists(Paths.lua(songLowercase + "/modchart"));
 		if (isSM)
 			executeModchart = FileSystem.exists(pathToSm + "/modchart.lua");
@@ -371,6 +371,8 @@ class PlayState extends MusicBeatState
 
 		// String for when the game is paused
 		detailsPausedText = "Paused - " + detailsText;
+
+		curStage = "";
 
 		// Updating Discord Rich Presence.
 		DiscordClient.changePresence(detailsText
@@ -423,23 +425,16 @@ class PlayState extends MusicBeatState
 
 		TimingStruct.clearTimings();
 
-		var convertedStuff:Array<Song.Event> = [];
-
 		var currentIndex = 0;
 		for (i in SONG.eventObjects)
 		{
-			var name = Reflect.field(i,"name");
-			var type = Reflect.field(i,"type");
-			var pos = Reflect.field(i,"position");
-			var value = Reflect.field(i,"value");
-
-			if (type == "BPM Change")
+			if (i.type == "BPM Change")
 			{
-                var beat:Float = pos;
+                var beat:Float = i.position;
 
                 var endBeat:Float = Math.POSITIVE_INFINITY;
 
-                TimingStruct.addTiming(beat,value,endBeat, 0); // offset in this case = start time since we don't have a offset
+                TimingStruct.addTiming(beat,i.value,endBeat, 0); // offset in this case = start time since we don't have a offset
 				
                 if (currentIndex != 0)
                 {
@@ -451,38 +446,9 @@ class PlayState extends MusicBeatState
 
 				currentIndex++;
 			}
-			convertedStuff.push(new Song.Event(name,pos,value,type));
 		}
 
-		SONG.eventObjects = convertedStuff;
-
-		var ba = SONG.bpm;
-
-		var index = 0;
-
-		trace("conversion stuff " + SONG.song + " " + SONG.notes.length);
-
-		for(i in SONG.notes)
-		{
-			var currentBeat = 4 * index;
-
-			var currentSeg = TimingStruct.getTimingAtBeat(currentBeat);
-
-			if (currentSeg == null)
-				continue;
-
-			var beat:Float = currentSeg.startBeat + (currentBeat - currentSeg.startBeat);
-
-			if (i.changeBPM && i.bpm != ba)
-			{
-				trace("converting changebpm for section " + index);
-				ba = i.bpm;
-				SONG.eventObjects.push(new Song.Event("FNF BPM Change " + index,beat,i.bpm,"BPM Change"));
-			}
-
-			index++;
-		}
-
+	
 
 		trace('INFORMATION ABOUT WHAT U PLAYIN WIT:\nFRAMES: ' + PlayStateChangeables.safeFrames + '\nZONE: ' + Conductor.safeZoneOffset + '\nTS: '
 			+ Conductor.timeScale + '\nBotPlay : ' + PlayStateChangeables.botPlay);
@@ -1099,6 +1065,46 @@ class PlayState extends MusicBeatState
 			}
 		}
 
+		if (startTime != 0)
+			{
+				var toBeRemoved = [];
+				for(i in 0...notes.members.length)
+				{
+					var dunceNote:Note = notes.members[i];
+	
+					if (dunceNote.strumTime - startTime <= 0)
+						toBeRemoved.push(dunceNote);
+					else 
+					{
+						if (PlayStateChangeables.useDownscroll)
+						{
+							if (dunceNote.mustPress)
+								dunceNote.y = (playerStrums.members[Math.floor(Math.abs(dunceNote.noteData))].y
+									+ 0.45 * (startTime - dunceNote.strumTime) * FlxMath.roundDecimal(PlayStateChangeables.scrollSpeed == 1 ? SONG.speed : PlayStateChangeables.scrollSpeed,
+										2)) - dunceNote.noteYOff;
+							else
+								dunceNote.y = (strumLineNotes.members[Math.floor(Math.abs(dunceNote.noteData))].y
+									+ 0.45 * (startTime - dunceNote.strumTime) * FlxMath.roundDecimal(PlayStateChangeables.scrollSpeed == 1 ? SONG.speed : PlayStateChangeables.scrollSpeed,
+										2)) - dunceNote.noteYOff;
+						}
+						else
+						{
+							if (dunceNote.mustPress)
+								dunceNote.y = (playerStrums.members[Math.floor(Math.abs(dunceNote.noteData))].y
+									- 0.45 * (startTime - dunceNote.strumTime) * FlxMath.roundDecimal(PlayStateChangeables.scrollSpeed == 1 ? SONG.speed : PlayStateChangeables.scrollSpeed,
+										2)) + dunceNote.noteYOff;
+							else
+								dunceNote.y = (strumLineNotes.members[Math.floor(Math.abs(dunceNote.noteData))].y
+									- 0.45 * (startTime - dunceNote.strumTime) * FlxMath.roundDecimal(PlayStateChangeables.scrollSpeed == 1 ? SONG.speed : PlayStateChangeables.scrollSpeed,
+										2)) + dunceNote.noteYOff;
+						}
+					}
+				}
+	
+				for(i in toBeRemoved)
+					notes.members.remove(i);
+			}
+
 		trace('generated');
 
 		// add(strumLine);
@@ -1134,7 +1140,7 @@ class PlayState extends MusicBeatState
 			add(songPosBG);
 
 			songPosBar = new FlxBar(songPosBG.x + 4, songPosBG.y + 4, LEFT_TO_RIGHT, Std.int(songPosBG.width - 8), Std.int(songPosBG.height - 8), this,
-				'songPositionBar', 0, 90000);
+				'songPositionBar', 0, songLength);
 			songPosBar.scrollFactor.set();
 			songPosBar.createFilledBar(FlxColor.GRAY, FlxColor.LIME);
 			add(songPosBar);
@@ -1388,7 +1394,7 @@ class PlayState extends MusicBeatState
 
 	var luaWiggles:Array<WiggleEffect> = [];
 
-	#if windows
+	#if cpp
 	public static var luaModchart:ModchartState = null;
 	#end
 
@@ -1400,36 +1406,9 @@ class PlayState extends MusicBeatState
 		//generateStaticArrows(0);
 		//generateStaticArrows(1);
 
-		if (startTime != 0)
-		{
-			var toBeRemoved = [];
-			for(i in 0...unspawnNotes.length)
-			{
-				var dunceNote:Note = unspawnNotes[i];
 
-				if (dunceNote.strumTime - startTime <= 0)
-					toBeRemoved.push(dunceNote);
-				else if (dunceNote.strumTime - startTime < 3500)
-				{
-					notes.add(dunceNote);
 
-					if (dunceNote.mustPress)
-						dunceNote.y = (playerStrums.members[Math.floor(Math.abs(dunceNote.noteData))].y
-							+ 0.45 * (startTime - dunceNote.strumTime) * FlxMath.roundDecimal(PlayStateChangeables.scrollSpeed == 1 ? SONG.speed : PlayStateChangeables.scrollSpeed,
-								2)) - dunceNote.noteYOff;
-					else
-						dunceNote.y = (strumLineNotes.members[Math.floor(Math.abs(dunceNote.noteData))].y
-							+ 0.45 * (startTime - dunceNote.strumTime) * FlxMath.roundDecimal(PlayStateChangeables.scrollSpeed == 1 ? SONG.speed : PlayStateChangeables.scrollSpeed,
-								2)) - dunceNote.noteYOff;
-					toBeRemoved.push(dunceNote);
-				}
-			}
-
-			for(i in toBeRemoved)
-				unspawnNotes.remove(i);
-		}
-
-		#if windows
+		#if cpp
 		// pre lowercasing the song name (startCountdown)
 		var songLowercase = StringTools.replace(PlayState.SONG.song, " ", "-").toLowerCase();
 		switch (songLowercase)
@@ -1461,21 +1440,17 @@ class PlayState extends MusicBeatState
 
 			var introAssets:Map<String, Array<String>> = new Map<String, Array<String>>();
 			introAssets.set('default', ['ready', "set", "go"]);
-			introAssets.set('school', ['weeb/pixelUI/ready-pixel', 'weeb/pixelUI/set-pixel', 'weeb/pixelUI/date-pixel']);
-			introAssets.set('schoolEvil', ['weeb/pixelUI/ready-pixel', 'weeb/pixelUI/set-pixel', 'weeb/pixelUI/date-pixel']);
+			introAssets.set('pixel', ['weeb/pixelUI/ready-pixel', 'weeb/pixelUI/set-pixel', 'weeb/pixelUI/date-pixel']);
 
 			var introAlts:Array<String> = introAssets.get('default');
 			var altSuffix:String = "";
+			var week6Bullshit:String = null;
 
-			for (value in introAssets.keys())
+			if (SONG.noteStyle == 'pixel')
 			{
-				if (value == curStage)
-				{
-					trace(value + " - " + curStage);
-					introAlts = introAssets.get(value);
-					if (curStage.contains('school'))
-						altSuffix = '-pixel';
-				}
+				introAlts = introAssets.get('pixel');
+				altSuffix = '-pixel';
+				week6Bullshit = 'week6';
 			}
 
 			switch (swagCounter)
@@ -1484,11 +1459,11 @@ class PlayState extends MusicBeatState
 				case 0:
 					FlxG.sound.play(Paths.sound('intro3' + altSuffix), 0.6);
 				case 1:
-					var ready:FlxSprite = new FlxSprite().loadGraphic(Paths.image(introAlts[0]));
+					var ready:FlxSprite = new FlxSprite().loadGraphic(Paths.image(introAlts[0], week6Bullshit));
 					ready.scrollFactor.set();
 					ready.updateHitbox();
 
-					if (curStage.startsWith('school'))
+					if (SONG.noteStyle == 'pixel')
 						ready.setGraphicSize(Std.int(ready.width * daPixelZoom));
 
 					ready.screenCenter();
@@ -1502,10 +1477,10 @@ class PlayState extends MusicBeatState
 					});
 					FlxG.sound.play(Paths.sound('intro2' + altSuffix), 0.6);
 				case 2:
-					var set:FlxSprite = new FlxSprite().loadGraphic(Paths.image(introAlts[1]));
+					var set:FlxSprite = new FlxSprite().loadGraphic(Paths.image(introAlts[1], week6Bullshit));
 					set.scrollFactor.set();
 
-					if (curStage.startsWith('school'))
+					if (SONG.noteStyle == 'pixel')
 						set.setGraphicSize(Std.int(set.width * daPixelZoom));
 
 					set.screenCenter();
@@ -1519,10 +1494,10 @@ class PlayState extends MusicBeatState
 					});
 					FlxG.sound.play(Paths.sound('intro1' + altSuffix), 0.6);
 				case 3:
-					var go:FlxSprite = new FlxSprite().loadGraphic(Paths.image(introAlts[2]));
+					var go:FlxSprite = new FlxSprite().loadGraphic(Paths.image(introAlts[2], week6Bullshit));
 					go.scrollFactor.set();
 
-					if (curStage.startsWith('school'))
+					if (SONG.noteStyle == 'pixel')
 						go.setGraphicSize(Std.int(go.width * daPixelZoom));
 
 					go.updateHitbox();
@@ -1709,7 +1684,7 @@ class PlayState extends MusicBeatState
 			ana.hit = false;
 			ana.hitJudge = "shit";
 			ana.nearestNote = [];
-			health -= 0.30;
+			health -= 0.20;
 		}
 	}
 
@@ -1862,7 +1837,7 @@ class PlayState extends MusicBeatState
 		var playerCounter:Int = 0;
 
 		// Per song offset check
-		#if windows
+		#if cpp
 		// pre lowercasing the song name (generateSong)
 		var songLowercase = StringTools.replace(PlayState.SONG.song, " ", "-").toLowerCase();
 		switch (songLowercase)
@@ -1939,6 +1914,8 @@ class PlayState extends MusicBeatState
 				susLength = susLength / Conductor.stepCrochet;
 				unspawnNotes.push(swagNote);
 
+				swagNote.isAlt = songNotes[3];
+
 				if (susLength > 0)
 					swagNote.isParent = true;
 
@@ -1951,6 +1928,7 @@ class PlayState extends MusicBeatState
 					var sustainNote:Note = new Note(daStrumTime + (Conductor.stepCrochet * susNote) + Conductor.stepCrochet, daNoteData, oldNote, true);
 					sustainNote.scrollFactor.set();
 					unspawnNotes.push(sustainNote);
+					sustainNote.isAlt = songNotes[3];
 
 					sustainNote.mustPress = gottaHitNote;
 
@@ -2017,7 +1995,7 @@ class PlayState extends MusicBeatState
 			switch (noteTypeCheck)
 			{
 				case 'pixel':
-					babyArrow.loadGraphic(Paths.image('weeb/pixelUI/arrows-pixels'), true, 17, 17);
+					babyArrow.loadGraphic(Paths.image('weeb/pixelUI/arrows-pixels', 'week6'), true, 17, 17);
 					babyArrow.animation.add('green', [6]);
 					babyArrow.animation.add('red', [7]);
 					babyArrow.animation.add('blue', [5]);
@@ -2131,7 +2109,7 @@ class PlayState extends MusicBeatState
 				vocals.pause();
 			}
 
-			#if windows
+			#if cpp
 			DiscordClient.changePresence("PAUSED on "
 				+ SONG.song
 				+ " ("
@@ -2165,7 +2143,7 @@ class PlayState extends MusicBeatState
 				startTimer.active = true;
 			paused = false;
 
-			#if windows
+			#if cpp
 			if (startTimer.finished)
 			{
 				DiscordClient.changePresence(detailsText
@@ -2203,7 +2181,7 @@ class PlayState extends MusicBeatState
 		vocals.time = Conductor.songPosition;
 		vocals.play();
 
-		#if windows
+		#if cpp
 		DiscordClient.changePresence(detailsText
 			+ " "
 			+ SONG.song
@@ -2261,37 +2239,7 @@ class PlayState extends MusicBeatState
 				}
 			}
 
-		if (updateFrame == 4)
-			{
-				TimingStruct.clearTimings();
-	
-					var currentIndex = 0;
-					for (i in SONG.eventObjects)
-					{
-						if (i.type == "BPM Change")
-						{
-							var beat:Float = i.position;
-	
-							var endBeat:Float = Math.POSITIVE_INFINITY;
-	
-							TimingStruct.addTiming(beat,i.value,endBeat, 0); // offset in this case = start time since we don't have a offset
-							
-							if (currentIndex != 0)
-							{
-								var data = TimingStruct.AllTimings[currentIndex - 1];
-								data.endBeat = beat;
-								data.length = (data.endBeat - data.startBeat) / (data.bpm / 60);
-								TimingStruct.AllTimings[currentIndex].startTime = data.startTime + data.length;
-							}
-	
-							currentIndex++;
-						}
-					}
-					updateFrame++;
-			}
-			else if (updateFrame != 5)
-				updateFrame++;
-	
+		
 
 			var timingSeg = TimingStruct.getTimingAtTimestamp(Conductor.songPosition);
 	
@@ -2340,7 +2288,7 @@ class PlayState extends MusicBeatState
 			}
 		}
 
-		#if windows
+		#if cpp
 		if (executeModchart && luaModchart != null && songStarted)
 		{
 			luaModchart.setVar('songPos', Conductor.songPosition);
@@ -2462,12 +2410,13 @@ class PlayState extends MusicBeatState
 			{
 				trace('GITAROO MAN EASTER EGG');
 				FlxG.switchState(new GitarooPause());
+				clean();
 			}
 			else
 				openSubState(new PauseSubState(boyfriend.getScreenPosition().x, boyfriend.getScreenPosition().y));
 		}
 
-		if (FlxG.keys.justPressed.SEVEN)
+		if (FlxG.keys.justPressed.SEVEN && songStarted)
 		{
 			if (useVideo)
 			{
@@ -2480,13 +2429,15 @@ class PlayState extends MusicBeatState
 				removedVideo = true;
 			}
 			cannotDie = true;
-			#if windows
+			#if cpp
 			DiscordClient.changePresence("Chart Editor", null, null, true);
 			#end
+
 			FlxG.switchState(new ChartingState());
+			clean();
 			FlxG.stage.removeEventListener(KeyboardEvent.KEY_DOWN, handleInput);
 			FlxG.stage.removeEventListener(KeyboardEvent.KEY_UP, releaseInput);
-			#if windows
+			#if cpp
 			if (luaModchart != null)
 			{
 				luaModchart.die();
@@ -2537,9 +2488,10 @@ class PlayState extends MusicBeatState
 			}
 
 			FlxG.switchState(new AnimationDebug(SONG.player2));
+			clean();
 			FlxG.stage.removeEventListener(KeyboardEvent.KEY_DOWN, handleInput);
 			FlxG.stage.removeEventListener(KeyboardEvent.KEY_UP, releaseInput);
-			#if windows
+			#if cpp
 			if (luaModchart != null)
 			{
 				luaModchart.die();
@@ -2551,9 +2503,10 @@ class PlayState extends MusicBeatState
 		if (FlxG.keys.justPressed.ZERO)
 		{
 			FlxG.switchState(new AnimationDebug(SONG.player1));
+			clean();
 			FlxG.stage.removeEventListener(KeyboardEvent.KEY_DOWN, handleInput);
 			FlxG.stage.removeEventListener(KeyboardEvent.KEY_UP, releaseInput);
-			#if windows
+			#if cpp
 			if (luaModchart != null)
 			{
 				luaModchart.die();
@@ -2756,7 +2709,7 @@ class PlayState extends MusicBeatState
 				}
 			}
 
-			#if windows
+			#if cpp
 			if (luaModchart != null)
 				luaModchart.setVar("mustHit", PlayState.SONG.notes[Std.int(curStep / 16)].mustHitSection);
 			#end
@@ -2765,7 +2718,7 @@ class PlayState extends MusicBeatState
 			{
 				var offsetX = 0;
 				var offsetY = 0;
-				#if windows
+				#if cpp
 				if (luaModchart != null)
 				{
 					offsetX = luaModchart.getVar("followXOffset", "float");
@@ -2773,7 +2726,7 @@ class PlayState extends MusicBeatState
 				}
 				#end
 				camFollow.setPosition(dad.getMidpoint().x + 150 + offsetX, dad.getMidpoint().y - 100 + offsetY);
-				#if windows
+				#if cpp
 				if (luaModchart != null)
 					luaModchart.executeState('playerTwoTurn', []);
 				#end
@@ -2793,7 +2746,7 @@ class PlayState extends MusicBeatState
 			{
 				var offsetX = 0;
 				var offsetY = 0;
-				#if windows
+				#if cpp
 				if (luaModchart != null)
 				{
 					offsetX = luaModchart.getVar("followXOffset", "float");
@@ -2802,7 +2755,7 @@ class PlayState extends MusicBeatState
 				#end
 				camFollow.setPosition(boyfriend.getMidpoint().x - 100 + offsetX, boyfriend.getMidpoint().y - 100 + offsetY);
 
-				#if windows
+				#if cpp
 				if (luaModchart != null)
 					luaModchart.executeState('playerOneTurn', []);
 				#end
@@ -2900,7 +2853,7 @@ class PlayState extends MusicBeatState
 
 				openSubState(new GameOverSubstate(boyfriend.getScreenPosition().x, boyfriend.getScreenPosition().y));
 
-				#if windows
+				#if cpp
 				// Game Over doesn't get his own variable because it's only used here
 				DiscordClient.changePresence("GAME OVER -- "
 					+ SONG.song
@@ -2936,7 +2889,7 @@ class PlayState extends MusicBeatState
 
 				openSubState(new GameOverSubstate(boyfriend.getScreenPosition().x, boyfriend.getScreenPosition().y));
 
-				#if windows
+				#if cpp
 				// Game Over doesn't get his own variable because it's only used here
 				DiscordClient.changePresence("GAME OVER -- "
 					+ SONG.song
@@ -3076,10 +3029,16 @@ class PlayState extends MusicBeatState
 
 					if (SONG.notes[Math.floor(curStep / 16)] != null)
 					{
-						if (SONG.notes[Math.floor(curStep / 16)].altAnim)
+						if (SONG.notes[Math.floor(curStep / 16)].p1AltAnim)
 							altAnim = '-alt';
 					}
 					
+					if (daNote.isAlt)
+					{
+						altAnim = '-alt';
+						trace("YOO WTF THIS IS AN ALT NOTE????");
+					}
+
 					// Accessing the animation name directly to play it
 					if (!daNote.isParent && daNote.parent != null)
 					{
@@ -3096,7 +3055,7 @@ class PlayState extends MusicBeatState
 									{
 										spr.animation.play('confirm', true);
 									}
-									if (spr.animation.curAnim.name == 'confirm' && !curStage.startsWith('school'))
+									if (spr.animation.curAnim.name == 'confirm' && SONG.noteStyle != 'pixel')
 									{
 										spr.centerOffsets();
 										spr.offset.x -= 13;
@@ -3107,7 +3066,7 @@ class PlayState extends MusicBeatState
 								});
 							}
 
-							#if windows
+							#if cpp
 							if (luaModchart != null)
 								luaModchart.executeState('playerTwoSing', [Math.abs(daNote.noteData), Conductor.songPosition]);
 							#end
@@ -3131,7 +3090,7 @@ class PlayState extends MusicBeatState
 									{
 										spr.animation.play('confirm', true);
 									}
-									if (spr.animation.curAnim.name == 'confirm' && !curStage.startsWith('school'))
+									if (spr.animation.curAnim.name == 'confirm' && SONG.noteStyle != 'pixel')
 									{
 										spr.centerOffsets();
 										spr.offset.x -= 13;
@@ -3142,7 +3101,7 @@ class PlayState extends MusicBeatState
 								});
 							}
 
-							#if windows
+							#if cpp
 							if (luaModchart != null)
 								luaModchart.executeState('playerTwoSing', [Math.abs(daNote.noteData), Conductor.songPosition]);
 							#end
@@ -3166,7 +3125,10 @@ class PlayState extends MusicBeatState
 					if (!daNote.isSustainNote)
 						daNote.modAngle = playerStrums.members[Math.floor(Math.abs(daNote.noteData))].angle;
 					if (daNote.sustainActive)
-						daNote.alpha = playerStrums.members[Math.floor(Math.abs(daNote.noteData))].alpha;
+					{
+						if (executeModchart)
+							daNote.alpha = playerStrums.members[Math.floor(Math.abs(daNote.noteData))].alpha;
+					}
 					daNote.modAngle = playerStrums.members[Math.floor(Math.abs(daNote.noteData))].angle;
 				}
 				else if (!daNote.wasGoodHit && !daNote.modifiedByLua)
@@ -3176,14 +3138,17 @@ class PlayState extends MusicBeatState
 					if (!daNote.isSustainNote)
 						daNote.modAngle = strumLineNotes.members[Math.floor(Math.abs(daNote.noteData))].angle;
 					if (daNote.sustainActive)
-						daNote.alpha = strumLineNotes.members[Math.floor(Math.abs(daNote.noteData))].alpha;
+					{
+						if (executeModchart)
+							daNote.alpha = playerStrums.members[Math.floor(Math.abs(daNote.noteData))].alpha;
+					}
 					daNote.modAngle = strumLineNotes.members[Math.floor(Math.abs(daNote.noteData))].angle;
 				}
 
 				if (daNote.isSustainNote)
 				{
 					daNote.x += daNote.width / 2 + 20;
-					if (PlayState.curStage.startsWith('school'))
+					if (SONG.noteStyle == 'pixel')
 						daNote.x -= 11;
 				}
 
@@ -3215,8 +3180,6 @@ class PlayState extends MusicBeatState
 									totalNotesHit += 1;
 								else
 								{
-									if (!daNote.isSustainNote)
-										health -= 0.20;
 									vocals.volume = 0;
 									if (theFunne && !daNote.isSustainNote)
 									{
@@ -3224,7 +3187,7 @@ class PlayState extends MusicBeatState
 									}
 									if (daNote.isParent)
 									{
-										health -= 0.30; // give a health punishment for failing a LN
+										health -= 0.15; // give a health punishment for failing a LN
 										trace("hold fell over at the start");
 										for (i in daNote.children)
 										{
@@ -3239,7 +3202,7 @@ class PlayState extends MusicBeatState
 											&& daNote.sustainActive
 											&& daNote.spotInLine != daNote.parent.children.length)
 										{
-											health -= 0.30; // give a health punishment for failing a LN
+											health -= 0.2; // give a health punishment for failing a LN
 											trace("hold fell over at " + daNote.spotInLine);
 											for (i in daNote.parent.children)
 											{
@@ -3250,13 +3213,15 @@ class PlayState extends MusicBeatState
 												misses++;
 											updateAccuracy();
 										}
+										else
+										{
+											health -= 0.15;
+										}
 									}
 								}
 							}
 							else
 							{
-								if (!daNote.isSustainNote)
-									health -= 0.20;
 								vocals.volume = 0;
 								if (theFunne && !daNote.isSustainNote)
 								{
@@ -3271,7 +3236,7 @@ class PlayState extends MusicBeatState
 
 								if (daNote.isParent)
 								{
-									health -= 0.30; // give a health punishment for failing a LN
+									health -= 0.15; // give a health punishment for failing a LN
 									trace("hold fell over at the start");
 									for (i in daNote.children)
 									{
@@ -3287,7 +3252,7 @@ class PlayState extends MusicBeatState
 										&& daNote.sustainActive
 										&& daNote.spotInLine != daNote.parent.children.length)
 									{
-										health -= 0.40; // give a health punishment for failing a LN
+										health -= 0.25; // give a health punishment for failing a LN
 										trace("hold fell over at " + daNote.spotInLine);
 										for (i in daNote.parent.children)
 										{
@@ -3298,6 +3263,10 @@ class PlayState extends MusicBeatState
 										if (daNote.parent.wasGoodHit)
 											misses++;
 										updateAccuracy();
+									}
+									else
+									{
+										health -= 0.15;
 									}
 								}
 							}
@@ -3368,7 +3337,7 @@ class PlayState extends MusicBeatState
 		if (FlxG.save.data.fpsCap > 290)
 			(cast(Lib.current.getChildAt(0), Main)).setFPSCap(290);
 
-		#if windows
+		#if cpp
 		if (luaModchart != null)
 		{
 			luaModchart.die();
@@ -3405,6 +3374,7 @@ class PlayState extends MusicBeatState
 			FlxG.sound.playMusic(Paths.music('freakyMenu'));
 			offsetTesting = false;
 			LoadingState.loadAndSwitchState(new OptionsMenu());
+			clean();
 			FlxG.save.data.offset = offsetTest;
 		}
 		else
@@ -3442,9 +3412,10 @@ class PlayState extends MusicBeatState
 						FlxG.sound.playMusic(Paths.music('freakyMenu'));
 						Conductor.changeBPM(102);
 						FlxG.switchState(new StoryMenuState());
+						clean();
 					}
 
-					#if windows
+					#if cpp
 					if (luaModchart != null)
 					{
 						luaModchart.die();
@@ -3496,6 +3467,7 @@ class PlayState extends MusicBeatState
 					FlxG.sound.music.stop();
 
 					LoadingState.loadAndSwitchState(new PlayState());
+					clean();
 				}
 			}
 			else
@@ -3516,7 +3488,10 @@ class PlayState extends MusicBeatState
 						});
 				}
 				else
+				{
 					FlxG.switchState(new FreeplayState());
+					clean();
+				}
 			}
 		}
 	}
@@ -3604,14 +3579,16 @@ class PlayState extends MusicBeatState
 
 			var pixelShitPart1:String = "";
 			var pixelShitPart2:String = '';
+			var pixelShitPart3:String = null;
 
-			if (curStage.startsWith('school'))
+			if (SONG.noteStyle == 'pixel')
 			{
 				pixelShitPart1 = 'weeb/pixelUI/';
 				pixelShitPart2 = '-pixel';
+				pixelShitPart3 = 'week6';
 			}
 
-			rating.loadGraphic(Paths.image(pixelShitPart1 + daRating + pixelShitPart2));
+			rating.loadGraphic(Paths.image(pixelShitPart1 + daRating + pixelShitPart2, pixelShitPart3));
 			rating.screenCenter();
 			rating.y -= 50;
 			rating.x = coolText.x - 125;
@@ -3677,7 +3654,7 @@ class PlayState extends MusicBeatState
 			if (!PlayStateChangeables.botPlay || loadRep)
 				add(currentTimingShown);
 
-			var comboSpr:FlxSprite = new FlxSprite().loadGraphic(Paths.image(pixelShitPart1 + 'combo' + pixelShitPart2));
+			var comboSpr:FlxSprite = new FlxSprite().loadGraphic(Paths.image(pixelShitPart1 + 'combo' + pixelShitPart2, pixelShitPart3));
 			comboSpr.screenCenter();
 			comboSpr.x = rating.x;
 			comboSpr.y = rating.y + 100;
@@ -3695,7 +3672,7 @@ class PlayState extends MusicBeatState
 			if (!PlayStateChangeables.botPlay || loadRep)
 				add(rating);
 
-			if (!curStage.startsWith('school'))
+			if (SONG.noteStyle != 'pixel')
 			{
 				rating.setGraphicSize(Std.int(rating.width * 0.7));
 				rating.antialiasing = FlxG.save.data.antialiasing;
@@ -3741,13 +3718,13 @@ class PlayState extends MusicBeatState
 			var daLoop:Int = 0;
 			for (i in seperatedScore)
 			{
-				var numScore:FlxSprite = new FlxSprite().loadGraphic(Paths.image(pixelShitPart1 + 'num' + Std.int(i) + pixelShitPart2));
+				var numScore:FlxSprite = new FlxSprite().loadGraphic(Paths.image(pixelShitPart1 + 'num' + Std.int(i) + pixelShitPart2, pixelShitPart3));
 				numScore.screenCenter();
 				numScore.x = rating.x + (43 * daLoop) - 50;
 				numScore.y = rating.y + 100;
 				numScore.cameras = [camHUD];
 
-				if (!curStage.startsWith('school'))
+				if (SONG.noteStyle != 'pixel')
 				{
 					numScore.antialiasing = FlxG.save.data.antialiasing;
 					numScore.setGraphicSize(Std.int(numScore.width * 0.5));
@@ -3849,7 +3826,7 @@ class PlayState extends MusicBeatState
 		var pressArray:Array<Bool> = [controls.LEFT_P, controls.DOWN_P, controls.UP_P, controls.RIGHT_P];
 		var releaseArray:Array<Bool> = [controls.LEFT_R, controls.DOWN_R, controls.UP_R, controls.RIGHT_R];
 		var keynameArray:Array<String> = ['left', 'down', 'up', 'right'];
-		#if windows
+		#if cpp
 		if (luaModchart != null)
 		{
 			for (i in 0...pressArray.length) {
@@ -4029,7 +4006,7 @@ class PlayState extends MusicBeatState
 									{
 										spr.animation.play('confirm', true);
 									}
-									if (spr.animation.curAnim.name == 'confirm' && !curStage.startsWith('school'))
+									if (spr.animation.curAnim.name == 'confirm' && SONG.noteStyle != 'pixel')
 									{
 										spr.centerOffsets();
 										spr.offset.x -= 13;
@@ -4058,7 +4035,7 @@ class PlayState extends MusicBeatState
 				if (!keys[spr.ID])
 					spr.animation.play('static', false);
 
-				if (spr.animation.curAnim.name == 'confirm' && !curStage.startsWith('school'))
+				if (spr.animation.curAnim.name == 'confirm' && SONG.noteStyle != 'pixel')
 				{
 					spr.centerOffsets();
 					spr.offset.x -= 13;
@@ -4241,7 +4218,7 @@ class PlayState extends MusicBeatState
 			// Hole switch statement replaced with a single line :)
 			boyfriend.playAnim('sing' + dataSuffix[direction] + 'miss', true);
 
-			#if windows
+			#if cpp
 			if (luaModchart != null)
 				luaModchart.executeState('playerOneMiss', [direction, Conductor.songPosition]);
 			#end
@@ -4384,19 +4361,16 @@ class PlayState extends MusicBeatState
 			else
 				totalNotesHit += 1;
 
-			switch (note.noteData)
-			{
-				case 2:
-					boyfriend.playAnim('singUP', true);
-				case 3:
-					boyfriend.playAnim('singRIGHT', true);
-				case 1:
-					boyfriend.playAnim('singDOWN', true);
-				case 0:
-					boyfriend.playAnim('singLEFT', true);
-			}
+			var altAnim:String = "";
+			if (note.isAlt)
+				{
+					altAnim = '-alt';
+					trace("Alt note on BF");
+				}
 
-			#if windows
+			boyfriend.playAnim('sing' + dataSuffix[note.noteData] + altAnim, true);
+
+			#if cpp
 			if (luaModchart != null)
 				luaModchart.executeState('playerOneSing', [note.noteData, Conductor.songPosition]);
 			#end
@@ -4549,7 +4523,7 @@ class PlayState extends MusicBeatState
 			resyncVocals();
 		}
 
-		#if windows
+		#if cpp
 		if (executeModchart && luaModchart != null)
 		{
 			luaModchart.setVar('curStep', curStep);
@@ -4595,7 +4569,7 @@ class PlayState extends MusicBeatState
 			notes.sort(FlxSort.byY, (PlayStateChangeables.useDownscroll ? FlxSort.ASCENDING : FlxSort.DESCENDING));
 		}
 
-		#if windows
+		#if cpp
 		if (executeModchart && luaModchart != null)
 		{
 			luaModchart.executeState('beatHit', [curBeat]);
@@ -4623,7 +4597,7 @@ class PlayState extends MusicBeatState
 			// Dad doesnt interupt his own notes
 			if ((!dad.animation.curAnim.name.startsWith("sing")) && dad.curCharacter != 'gf')
 				if ((curBeat % idleBeat == 0 || !idleToBeat) || dad.curCharacter == "spooky")
-					dad.dance(idleToBeat);
+					dad.dance(idleToBeat, SONG.notes[Math.floor(curStep / 16)].p1AltAnim);
 		}
 		// FlxG.log.add('change bpm' + SONG.notes[Std.int(curStep / 16)].changeBPM);
 		wiggleShit.update(Conductor.crochet);
@@ -4657,7 +4631,7 @@ class PlayState extends MusicBeatState
 
 		if (!boyfriend.animation.curAnim.name.startsWith("sing") && (curBeat % idleBeat == 0 || !idleToBeat))
 		{
-			boyfriend.playAnim('idle', idleToBeat);
+			boyfriend.playAnim('idle' + ((SONG.notes[Math.floor(curStep / 16)].p2AltAnim && boyfriend.animation.getByName('idle-alt') != null) ? '-alt' : ''), idleToBeat);
 		}
 
 		/*if (!dad.animation.curAnim.name.startsWith("sing"))

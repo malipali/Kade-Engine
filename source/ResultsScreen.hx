@@ -218,6 +218,7 @@ class ResultsScreen extends FlxSubState
             }
             else
                 FlxG.switchState(new FreeplayState());
+            PlayState.instance.clean();
         }
 
         if (FlxG.keys.justPressed.F1 && !PlayState.loadRep)
@@ -282,12 +283,13 @@ class ResultsScreen extends FlxSubState
             music.fadeOut(0.3);
 
             if (PlayState.isSM)
-                PlayState.SONG = Song.loadFromJsonRAW(poop);
+                PlayState.SONG = Song.conversionChecks(Song.loadFromJsonRAW(poop));
             else
-                PlayState.SONG = Song.loadFromJson(poop, PlayState.rep.replay.songName);
+                PlayState.SONG = Song.conversionChecks(Song.loadFromJson(poop, PlayState.rep.replay.songName));
             PlayState.isStoryMode = false;
             PlayState.storyDifficulty = PlayState.rep.replay.songDiff;
             LoadingState.loadAndSwitchState(new PlayState());
+            PlayState.instance.clean();
         }
 
         if (FlxG.keys.justPressed.F2  && !PlayState.loadRep)
@@ -324,6 +326,7 @@ class ResultsScreen extends FlxSubState
             PlayState.isStoryMode = false;
             PlayState.storyDifficulty = PlayState.storyDifficulty;
             LoadingState.loadAndSwitchState(new PlayState());
+            PlayState.instance.clean();
         }
 
 		super.update(elapsed);

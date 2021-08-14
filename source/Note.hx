@@ -35,6 +35,8 @@ class Note extends FlxSprite
 	public var originColor:Int = 0; // The sustain note's original note's color
 	public var noteSection:Int = 0;
 
+	public var isAlt:Bool = false;
+
 	public var noteCharterObject:FlxSprite;
 
 	public var noteScore:Float = 1;
@@ -63,12 +65,14 @@ class Note extends FlxSprite
 
 	public var children:Array<Note> = [];
 
-	public function new(strumTime:Float, noteData:Int, ?prevNote:Note, ?sustainNote:Bool = false, ?inCharter:Bool = false)
+	public function new(strumTime:Float, noteData:Int, ?prevNote:Note, ?sustainNote:Bool = false, ?inCharter:Bool = false, ?isAlt:Bool = false)
 	{
 		super();
 
 		if (prevNote == null)
 			prevNote = this;
+
+		this.isAlt = isAlt;
 
 		this.prevNote = prevNote;
 		isSustainNote = sustainNote;
@@ -143,7 +147,9 @@ class Note extends FlxSprite
 						animation.add(dataColor[i] + 'holdend', [i + 4]); // Tails
 					}
 
-					setGraphicSize(Std.int(width * PlayState.daPixelZoom));
+					var widthSize = Std.int(PlayState.curStage.startsWith('school') ? (width * PlayState.daPixelZoom) : (isSustainNote ? (width * (PlayState.daPixelZoom - 1.5)) : (width * PlayState.daPixelZoom)));
+
+					setGraphicSize(widthSize);
 					updateHitbox();
 				default:
 					frames = Paths.getSparrowAtlas('NOTE_assets');
